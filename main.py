@@ -1,6 +1,7 @@
 import argparse
 import csv
 from pathlib import Path
+from src.normalizer import normalize_row
 
 def parse_args():
     parser = argparse.ArgumentParser(
@@ -41,14 +42,22 @@ def main():
     print(f"Arquivo CSV recebido com sucesso: {input_path}")
 
     rows, encoding = read_csv(input_path)
-    preview_rows = rows[:5]
+    normalized_rows = [normalize_row(row) for row in rows]
+    raw_preview_rows = rows[:5]
+    normalized_preview_rows = normalized_rows[:5]
 
     print(f"Encoding utilizado: {encoding}")
     print(f"Total de registos lidos: {len(rows)}")
+    print (f"Total de registros normalizados: {len(normalized_rows)}")
 
-    print("\nPrévia do dataset ingerido:")
+    print("\nPrévia do dataset original:")
 
-    for row in preview_rows:
+    for row in raw_preview_rows:
+        print(row)
+
+    print("\nPrévia do dataset normalizado:")
+
+    for row in normalized_preview_rows:
         print(row)
 
 if __name__ == "__main__":
