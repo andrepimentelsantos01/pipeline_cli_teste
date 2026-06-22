@@ -9,6 +9,7 @@ from src.writer import write_csv
 from src.viacep_client import get_address_by_zip_code
 from src.internal_api_client import send_client
 from src.report import build_report, write_report
+from src.logger import setup_logger
 
 VALID_FIELDS = [
     "external_id",
@@ -24,7 +25,12 @@ VALID_FIELDS = [
 ]
 
 INVALID_FIELDS = [
-    *VALID_FIELDS,
+    "external_id",
+    "name",
+    "email",
+    "document",
+    "phone",
+    "zip_code",
     "invalid_reason",
 ]
 
@@ -59,13 +65,17 @@ def read_csv(input_path):
 
 def main():
     started_at = time.perf_counter()
+    logger = setup_logger()
+    logger.info("Iniciando a execução do pipeline...")
 
     args = parse_args()
     input_path = Path(args.input)
 
     if not input_path.exists():
+        logger.error(f"Arquivo não encontrado: {input_path}")
         raise FileNotFoundError(f"Arquivo não encontrado: {input_path}")
 
+    logger.info(f"Arquivo de entrada recebido: {input_path}")
     print(f"Arquivo CSV recebido com sucesso: {input_path}")
 
     rows, encoding = read_csv(input_path)
@@ -74,14 +84,19 @@ def main():
     valid_rows = []
     invalid_rows = []
 
-    for row in normalized_rows:
-        is_valid, reason = validate_row(row)
+    for original_row, normalized_row in zip(rows, normalized_rows):
+        is_valid, reason = validate_row(normalized_row)
 
         if is_valid:
-            valid_rows.append(row)
+            valid_rows.append(normalized_row)
         else:
             invalid_rows.append({
-                **row,
+                "external_id": original_row.get("external_id", ""),
+                "name": original_row.get("name", ""),
+                "email": original_row.get("email", ""),
+                "document": original_row.get("document", ""),
+                "phone": original_row.get("phone", ""),
+                "zip_code": original_row.get("zip_code", ""),
                 "invalid_reason": reason,
             })
 
@@ -100,6 +115,7 @@ def main():
             })
         else:
             viacep_failures += 1
+            logger.warning(f"Falha ao consultar a API do ViaCEP para o zip_code={row.get('zip_code')}")
             enriched_valid_rows.append({
                 **row,
                 "street": "",
@@ -121,6 +137,7 @@ def main():
             total_updated += 1
         else:
             total_internal_api_failures += 1
+            logger.error(f"Falha ao enviar cliente para a API interna: external_id={client.get('external_id')}")
 
     execution_time = round(time.perf_counter() - started_at, 2)
 
@@ -137,6 +154,22 @@ def main():
     write_csv(Path("output/valid.csv"), enriched_valid_rows, VALID_FIELDS)
     write_csv(Path("output/invalid.csv"), invalid_rows, INVALID_FIELDS)
     write_report(Path("output/report.json"), report)
+
+    logger.info (f"Encoding utilizado: {encoding}")
+    logger.info (f"Total de registros processados: {len(rows)}")
+    logger.info (f"Total de registros normalizados: {len(normalized_rows)}")
+    logger.info (f"Total de registros válidos antes da deduplicação: {len(valid_rows)}")
+    logger.info (f"Total de registros válidos após deduplicação: {len(deduplicated_valid_rows)}")
+    logger.info (f"Total de external_ids duplicados: {len(duplicated_external_ids)}")
+    logger.info (f"Total de registros inválidos: {len(invalid_rows)}")
+    logger.info (f"Total de falhas ViaCEP: {viacep_failures}")
+    logger.info (f"Total de registros criados na API interna: {total_created}")
+    logger.info (f"Total de registros atualizados na API interna: {total_updated}")
+    logger.info (f"Total de falhas na API interna: {total_internal_api_failures}")
+    logger.info ("Arquivo gerado: output/valid.csv")
+    logger.info ("Arquivo gerado: output/invalid.csv")
+    logger.info ("Arquivo gerado: output/report.json")
+    logger.info (f"Execução finalizada em {execution_time}s")
 
     raw_preview_rows = rows[:5]
     normalized_preview_rows = normalized_rows[:5]
@@ -168,7 +201,7 @@ def main():
     for row in normalized_preview_rows:
         print(row)
 
-    print ("\nPrévia do dataset válido enriquecido com ViaCEP")
+    print ("\nPrévia do dataset com registros válido enriquecido com ViaCEP")
 
     for row in enriched_preview_rows:
         print(row)
