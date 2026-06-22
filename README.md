@@ -264,9 +264,9 @@ Exemplos:
 2026-06-22 17:19:14 | WARNING | Registro inválido: external_id=003 motivo=O campo 'EMAIL' é inválido.
 2026-06-22 17:19:14 | WARNING | External ID duplicado encontrado: 001
 2026-06-22 17:19:14 | WARNING | Falha ao consultar a API do ViaCEP para o zip_code=99999999
+```
 
-
-## Tratamento de Erros
+### Tratamento de Erros
 
 O pipeline foi estruturado para não interromper a execução por erro em registros individuais.
 
@@ -302,14 +302,6 @@ Principais tratamentos:
 - Não há retry/backoff nas chamadas ao ViaCEP, então este ponto fica ok.
 - A validação de CPF/CNPJ considera apenas quantidade de dígitos no código que fiz, porém em uma implementação real poderíamos evoluir para uma API da Receita Federal para validação inteligente desse campo.
 
-## Possíveis Melhorias
-
-- Parametrizar URL da API interna e timeout por variável de ambiente.
-- Criar testes de integração para a API mock.
-- Adicionar validação oficial de CPF e CNPJ.
-- Criar comando auxiliar para preparar ambiente, rodar testes e executar o pipeline em sequência.
-- Melhorar o formato de logs para JSON estruturado.
-
 ## Uso de IA
 
 Usei IA como apoio durante o desenvolvimento para revisar decisões técnicas e discutir trade-offs. As decisões de estrutura, validação, fluxo de execução, criação do código, ajustes finais e testes foram executadas manualmente por mim durante a implementação, limitando o uso de IA para revisão.
@@ -318,36 +310,36 @@ Usei IA como apoio durante o desenvolvimento para revisar decisões técnicas e 
 
 Durante o desenvolvimento segui uma evolução incremental do pipeline.
 
-Primeiro criei a estrutura inicial de arquivos para refletir as etapas do enunciado.
+- Primeiro criei a estrutura inicial de arquivos para refletir as etapas do enunciado.
 
-Depois comecei pelo `main.py` pois ele é a porta de entrada do pipeline, antes de aplicar regra de negócio validei a interface exigida pelo teste:
+- Depois comecei pelo `main.py` pois ele é a porta de entrada do pipeline e antes de aplicar regra de negócio validei a interface exigida pelo teste:
 
 ```bash
 python main.py --input arquivo.csv
 ```
 
-Em seguida criei um CSV de teste com dados válidos, inválidos, duplicados e colunas extras. Essa etapa ajudou a validar a ingestão real do arquivo e também revelou uma questão de encoding, como arquivos criados ou editados no Windows podem vir em `cp1252` implementei um fallback entre `utf-8-sig` e `cp1252` para tornar a leitura mais robusta.
+- Em seguida criei um CSV de teste com dados válidos, inválidos, duplicados e colunas extras. Essa etapa ajudou a validar a ingestão real do arquivo e também revelou uma questão de encoding como arquivos criados ou editados no Windows podem vir em `cp1252` e arquivos vindo de sistemas (APIs) podem vir em `utf-8` implementei um fallback entre `utf-8-sig` e `cp1252` para tornar a leitura mais robusta.
 
-Na etapa de normalização, criei funções específicas para limpar textos, normalizar email e manter apenas números em campos como documento, telefone e CEP. Depois integrei essa lógica ao `main.py` e passei a exibir uma prévia do dataset antes e depois da normalização.
+- Na etapa de normalização criei funções específicas para limpar textos, normalizar email e manter apenas números em campos como documento, telefone e CEP. Depois integrei essa lógica ao `main.py` e passei a exibir uma prévia do dataset antes e depois da normalização.
 
-Com os dados normalizados implementei o `validator.py`. Nele concentrei as regras de validação do enunciado e também adicionei uma validação simples de email com regex. A função principal retorna se a linha é válida e quando não é, retorna o motivo da invalidação.
+- Com os dados normalizados implementei o `validator.py`. Nele concentrei as regras de validação do enunciado e também adicionei uma validação simples de email com regex. A função principal retorna se a linha é válida e quando não é, retorna o motivo da invalidação.
 
-Depois criei o `writer.py` para centralizar a escrita dos arquivos de saída, uma decisão importante foi gerar os arquivos com cabeçalho mesmo quando não houver linhas, isso mantém o output do pipeline previsível.
+- Depois criei o `writer.py` para centralizar a escrita dos arquivos de saída, uma decisão importante foi gerar os arquivos com cabeçalho mesmo quando não houver linhas porque isso mantém o output do pipeline previsível em todos os cenários.
 
-Também tratei duplicidade por `external_id`, a regra adotada foi manter a última ocorrência válida do arquivo.
+- Também tratei duplicidade por `external_id`, a regra adotada foi manter a última ocorrência válida do arquivo.
 
-Na sequência implementei o `viacep_client.py` responsável por consultar a API pública do ViaCEP e mapear os campos retornados para `street`, `neighborhood`, `city` e `state`.
+- Na sequência implementei o `viacep_client.py` responsável por consultar a API pública do ViaCEP e mapear os campos retornados para `street`, `neighborhood`, `city` e `state`.
 
-Depois implementei a API mock em `api_mock.py` usando FastAPI e SQLite. Escolhi SQLite por ser simples, nativo e suficiente para demonstrar persistência local. Com a API rodando validei o comportamento idempotente com seguinte teste: na primeira execução os registros foram criados e na segunda execução os mesmos registros foram atualizados.
+- Depois implementei a API mockada em `api_mock.py` usando FastAPI e SQLite. Escolhi SQLite por ser simples, nativo e suficiente para demonstrar persistência local. Com a API rodando validei o comportamento idempotente com seguinte teste: na primeira execução os registros foram criados e na segunda execução os mesmos registros foram atualizados.
 
-Em seguida implementei o `report.py` responsável por montar e escrever o `report.json` com os totais exigidos no enunciado do teste.
+- Em seguida implementei o `report.py` responsável por montar e escrever o `report.json` com os totais exigidos no enunciado do teste.
 
-Por fim implementei o `logger.py` usando a biblioteca nativa `logging`, o logger registra início e fim da execução, totais processados, falhas de API e arquivos gerados.
+- Por fim implementei o `logger.py` usando a biblioteca nativa `logging`, o logger registra início e fim da execução, totais processados, falhas de API e arquivos gerados.
 
-Depois que o fluxo principal estava atendido adicionei testes unitários simples para normalização, validação e deduplicação. A intenção foi garantir uma checagem rápida das regras mais críticas do enunciado.
+- Depois que o fluxo principal estava atendido adicionei testes unitários simples para normalização, validação e deduplicação. A intenção foi garantir uma checagem rápida das regras mais críticas do enunciado.
 
 ## Trade-offs
 
-Optei por FastAPI em vez de Flask porque o FastAPI oferece uma estrutura moderna, documentação automática e boa integração com modelos de entrada usando Pydantic.
+- Optei por FastAPI em vez de Flask porque o FastAPI oferece uma estrutura moderna, documentação automática e boa integração com modelos de entrada usando Pydantic.
 
-Também optei por separar responsabilidades em módulos, entendo que isso aumenta um pouco a quantidade de arquivos mas melhora a leitura, facilita manutenção e reduz o risco de o `main.py` concentrar regra demais e acoplar o pipeline. A ideia é deixar sempre ele preparado para escalar por isso eu prefiro esse estilo de programação.
+- Também optei por separar responsabilidades em módulos, entendo que isso aumenta um pouco a quantidade de arquivos mas melhora a leitura, facilita manutenção e reduz o risco de o `main.py` concentrar regra demais e acoplar o pipeline. A ideia é deixar sempre ele preparado para escalar por isso eu prefiro esse estilo de programação.
