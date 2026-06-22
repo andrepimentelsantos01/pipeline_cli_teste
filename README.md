@@ -1,16 +1,353 @@
-1. Comecei criando a estrutura de arquivos do pipeline deixando a ideia já modelada em todas as etapas do enunciado e instalando todas as dependencias via requirements.txt.
-2. Depois de cumprir com a primeira etapa, o segundo passo foi começar a preencher o main.py pois ele é a porta de entrada do pipeline e é necessário validar a interface de entrada antes de qualquer regra de negócio ser aplicada. Criei um arquivo CSV vazio somente para testar a entrada neste passo
-3. Nesta etapa inseri um arquivo CSV com dados mockados para já testar a ingestão do arquivo com coluna e linhas, gerando uma exibição da prévia dos dados ingeridos no terminal. Tive um pequeno erro em relação ao encoding onde foi informado que arquivos editados manualmente (eu criei o CSV manualmente) tem um encoding diferente de arquivos gerados via sistema, então eu resolvi criar um fallback para que ambos os encodings sejam testados aumentando a robustez na etapa de ingestão sendo preparada para ambos os tipos de arquivo.
-4. Nesta etapa estruturei o script para normalização dos dados conforme o enunciado do teste, onde eu criei 3 funções para realizar essa tarefa, a primeira foi only_digits onde ele remove do campo tudo o que não for número, a segunda foi o normalize_text que remove os espaços no começo e fim, a terceira foi o normalize_email que remove espaços e transforma todos os caracteres em letras minusculas, por fim criei o normalize_row que recebe a linha crua do CSV de entrada e devolve a linha limpa usando as funções criadas. Em seguida passei a usar o normalize_row dentro do main.py para integrar o resultado desse processamento no pipeline. Também atualizei o console para ele exibir o dataset antes e depois do tratamento de normalização.
-5. No próximo passo eu trabalhei em cima do scrip de validação dos registros, agora que eles já foram normalizados o passo natural é validar eles dentro do pipeline, para isso eu criei o validator.py onde vou inserir as regras de validação para depois chamar no main.py. É nesse validador que comecei a aplicar as regras de negócio definidas para cada atributo(coluna) obrigatório no pipeline. Nesse mesmo validador também aproveitei para inserir mais uma etapa de qualidade em cima dos dados de email criando a função auxiliar is_valid_email(email) que usa um regex simples para tratamento deste campo. A função principal desse componente é o validate_row(row) aqui eu aplico em todas as colunas as regras exigidas no enunciado do teste, ela já recebe a linha normalizada e retorna sempre uma tupla com Verdadeiro ou Falso, onde sempre que for Falso ele imprime no console o motivo do erro que liguei com a regra de negócio definida.
-6. Agora que já deixei o validador funcionando, vou usar a classificação de válido e inválido para criar os arquivos de output solicitados no enunciado do teste, para isso criei um componente que vai ser responsável por essa escrita ele se chama writer.py. Uma decisão importante nesse componente é que mesmo que 'ROWS' retorne vazio, o arquivo será criado com cabeçalho da mesma forma, isso é bom porque o output do pipeline fica sempre previsível mesmo com ausência de dados. Aqui também inseri no validador a regra que não aceita IDs duplicados e passei a integrar ele no pipeline chamando pelo main.py.
-7. Neste próximo passo decidi iniciar o processo de enriquecimento pela API da ViaCEP, para isso criei um componente responsável por essa tarefa que se chama viacep_client.py, ele contém uma função que recebe o zip_code e retorna os campos de endereço fornecidos pela API.
-8. Agora com a tabela já atendendo boa parte das regras de negócio propostas, vou iniciar a construção da API mockada (FastAPI) no arquivo api_mock.py usando o banco de dados SQLite para persistência, o motivo de usar esse banco de dados é que ele já vem nativo no Python e também replica a estrutura de um banco relacional para SQL. Após isso vou implementar o client da API onde vou usar esse componente no main.py para enviar cada registro válido para o endpoint POST /clients, isso será feito através da função send_cliente(client) que deve retornar os status solicitados no enunciado do desafio. Subi a API criada e realizei os testes de idempotência onde rodei a primeira vez o script do Main já com a API ligada e ela criou os registros no banco de dados, ao rodar novamente o mesmo comando ela teve o comportamento esperado pois atualizou os dois registros ao invés de duplicar eles.
-9. Com a API rodando ok, o próximo passo que decidi seguir foi implementar o componente que vai fornecer o arquivo de report (JSON) solicitado no enunciado do teste, para isso criei o arquivo report.py. Nesse componente tem uma função principal que irá montar o report organizado definido em build_report e uma outra função auxiliar que escreve de fato o arquivo de report no output do pipeline.
-10. Com o componente de report implementado decidi fechar o último ponto em relação aos arquivos obrigatórios no output, conforme solicitado no enunciado do teste. Esse componente vou trabalhar no arquivo logger.py. Para isso eu usei a biblioteca 'LOGGING' que é nativa do Python para lidar com logs, coloquei um mecanismo para evitar a duplicação de logs caso a função seja chamada mais de uma vez no main.py por acidente e fiz a integração do componente de logs no main.py interceptando cada etapa importante do pipeline para registro no logger.error.
-11. Agora com o enunciado atendido, implementei uma camada simples para testes unitários nos componentes de normalização e validação, para garantir de forma rápida e automatizada que esses componentes estão funcionando exatamente como a regra de negócio espera.
+# Pipeline Teste via CLI
+
+O projeto foi desenvolvido para atender um teste prático com foco em Python, automações, integração com APIs, tratamento de dados inconsistentes e idempotência.
+
+## Visão Geral
+
+O pipeline executa o seguinte fluxo:
+
+1. Lê um arquivo CSV disponível na pasta `input/`, criando uma landing zone.
+2. Normaliza os campos esperados.
+3. Valida os registros conforme as regras do enunciado.
+4. Separa registros válidos e inválidos no `output/`.
+5. Remove duplicidades por `external_id` mantendo a última ocorrência válida.
+6. Enriquece registros válidos com endereço pela API do ViaCEP.
+7. Cadastra ou atualiza os registros em uma API mock local.
+8. Gera arquivos de saída na pasta `output/`.
+9. Gera relatório JSON e log de execução.
+
+## Estrutura do Projeto
+
+```text
+pipeline_cli_teste/
+  input/
+    clientes.csv
+  output/
+    valid.csv
+    invalid.csv
+    report.json
+    execution.log
+  src/
+    normalizer.py
+    validator.py
+    writer.py
+    viacep_client.py
+    internal_api_client.py
+    report.py
+    logger.py
+  tests/
+    test_normalizer.py
+    test_validator.py
+  api_mock.py
+  main.py
+  requirements.txt
+  pytest.ini
+  README.md
+```
+
+## Requisitos
+
+- Python 3.13 ou superior
+- Ambiente virtual Python
+- Acesso à internet para consulta ao ViaCEP
+
+## Instalação
+
+Crie e ative o ambiente virtual:
+
+```bash
+python -m venv .venv
+```
+
+```bash
+.\.venv\Scripts\Activate.ps1
+```
+
+Instale as dependências:
+
+```bash
+pip install -r requirements.txt
+```
+
+Dependências utilizadas:
+
+```text
+fastapi
+uvicorn
+requests
+pytest
+```
+
+## Como Executar
+
+Primeiro suba a API localmente em um terminal separado:
+
+```bash
+uvicorn api_mock:app --reload
+```
+
+A API ficará disponível em:
+
+```text
+http://127.0.0.1:8000
+```
+
+Em outro terminal execute o pipeline:
+
+```bash
+python main.py --input input/clientes.csv
+```
+
+## Como Rodar os Testes
+
+Execute:
+
+```bash
+pytest
+```
+
+Os testes cobrem:
+
+- normalização de campos;
+- validação de registros inválidos;
+- deduplicação por `external_id`.
+
+## Arquivo de Entrada
+
+O CSV pode conter as seguintes colunas:
+
+```text
+external_id
+name
+email
+document
+phone
+zip_code
+```
+
+Colunas extras são ignoradas no processamento.
+
+## Regras de Normalização
+
+Para cada registro:
+
+- espaços extras são removidos;
+- email é convertido para lowercase;
+- `document`, `phone` e `zip_code` mantêm apenas números;
+- colunas extras são ignoradas.
+
+## Regras de Validação
+
+As validações aplicadas são:
+
+- `external_id`: obrigatório;
+- `name`: obrigatório, com mínimo de 2 caracteres;
+- `email`: opcional, mas se informado precisa ter formato válido;
+- `document`: opcional, mas se informado precisa ter 11 ou 14 dígitos;
+- `phone`: opcional, mas se informado precisa conter apenas números após normalização;
+- `zip_code`: opcional, mas se informado precisa conter exatamente 8 dígitos.
+
+Registros inválidos não interrompem a execução, eles são enviados para `output/invalid.csv` com o motivo da invalidação.
+
+## Deduplicação e Idempotência
+
+O controle de duplicidade é feito por `external_id`.
+
+Quando o mesmo `external_id` aparece mais de uma vez no CSV o pipeline mantém a última ocorrência válida.
+
+A idempotência também é garantida na API mock local:
+
+- se o `external_id` ainda não existir, o registro é criado e a API retorna `201`;
+- se o `external_id` já existir, o registro é atualizado e a API retorna `200`.
+
+Rodar o pipeline duas vezes com o mesmo arquivo não cria duplicidade.
+
+## Enriquecimento ViaCEP
+
+Para registros válidos com `zip_code`, o pipeline consulta:
+
+```text
+https://viacep.com.br/ws/{zip_code}/json/
+```
+
+Quando a consulta retorna endereço, são adicionados os campos:
+
+```text
+street
+neighborhood
+city
+state
+```
+
+Se a API falhar ou o CEP não for encontrado, o pipeline registra a falha, mantém o processamento e grava os campos de endereço vazios.
+
+## API Mock Interna
+
+A API mockada foi implementada com FastAPI e SQLite.
+
+Endpoint:
+
+```http
+POST /clients
+```
+
+Persistência:
+
+```text
+pipeline_cli_teste.db
+```
+
+Regra de escrita:
+
+- `external_id` é a chave primária;
+- registro novo retorna `201`;
+- registro existente retorna `200`;
+- registros existentes são atualizados.
+
+## Arquivos de Saída
+
+O pipeline gera a pasta `output/` com:
+
+```text
+valid.csv
+invalid.csv
+report.json
+execution.log
+```
+
+### valid.csv
+
+Contém os registros válidos, normalizados, deduplicados e enriquecidos via ViaCEP.
+
+### invalid.csv
+
+Contém os campos originais esperados do CSV e o motivo da invalidação.
+
+### report.json
+
+Contém:
+
+```json
+{
+  "total_processados": 
+  "total_validos": 
+  "total_invalidos": 
+  "total_criados": 
+  "total_atualizados": 
+  "total_falhas_api": 
+  "tempo_execucao": 
+}
+```
+
+### execution.log
+
+Contém logs com timestamp, nível e mensagem.
+
+Exemplo:
+
+```text
+2026-06-22 17:19:14 | INFO | Total de registros processados: 7
+```
+### Warnings
+
+O pipeline registra warnings para situações que não devem interromper a execução mas precisam ficar rastreáveis no log.
+
+Atualmente são registrados warnings para:
+
+- registros inválidos encontrados durante a validação;
+- `external_id` duplicado no arquivo de entrada;
+- falha ou ausência de retorno na consulta ao ViaCEP.
+
+Exemplos:
+
+```text
+2026-06-22 17:19:14 | WARNING | Registro inválido: external_id=003 motivo=O campo 'EMAIL' é inválido.
+2026-06-22 17:19:14 | WARNING | External ID duplicado encontrado: 001
+2026-06-22 17:19:14 | WARNING | Falha ao consultar a API do ViaCEP para o zip_code=99999999
 
 
-TRADE OFF 1: Eu optei por utilizar o FastAPI ao invés do Flask porque o FastAPI tem um modelo robusto, otimizado e já possui documentação automática, isso facilita a sustentação e evolução da API com mais facilidade, sempre que posso escolher utilizo essa biblioteca.
+## Tratamento de Erros
 
-TRADE OFF 2: Eu optei por criar uma estrutura desacoplada para o pipeline com o objetivo de facilitar a leitura, manutenção e evolução do pipeline. Trazendo boas práticas da Programação Orientada a Objetos.
+O pipeline foi estruturado para não interromper a execução por erro em registros individuais.
+
+Principais tratamentos:
+
+- registros inválidos são separados em `invalid.csv`;
+- falhas no ViaCEP não interrompem o processamento;
+- falhas na API interna são contabilizadas;
+- arquivos de saída são gerados mesmo que alguma lista esteja vazia;
+- logs registram início, fim, totais e falhas relevantes.
+
+## Premissas Adotadas
+
+- O CSV pode vir em `utf-8-sig` ou `cp1252`.
+- Colunas extras não fazem parte do processamento final.
+- CPF e CNPJ são validados apenas pelo tamanho numérico, sem validação oficial de dígitos.
+- Para duplicidades no mesmo CSV, a última ocorrência válida por `external_id` prevalece.
+- A API mock precisa estar rodando para que o cadastro interno retorne criação ou atualização.
+- O arquivo `output/` é resultado de execução e pode ser recriado pelo pipeline.
+
+## Decisões Técnicas
+
+- Usei `csv.DictReader` para não depender da ordem das colunas.
+- Separei responsabilidades em módulos dentro de `src/` para manter o `main.py` como orquestrador do fluxo.
+- Usei FastAPI pela simplicidade, documentação automática e boa estrutura para APIs.
+- Usei SQLite por ser nativo, simples de executar localmente e suficiente para demonstrar idempotência.
+- Mantive timeout nas chamadas externas para evitar que o pipeline fique preso aguardando resposta.
+- Usei `pytest` para cobrir regras centrais de normalização, validação e deduplicação.
+
+## Limitações
+
+- Não há autenticação na API mock pois não era exigido no escopo e seria algo que eu implementaria.
+- Não há retry/backoff nas chamadas ao ViaCEP, então este ponto fica ok.
+- A validação de CPF/CNPJ considera apenas quantidade de dígitos no código que fiz, porém em uma implementação real poderíamos evoluir para uma API da Receita Federal para validação inteligente desse campo.
+
+## Possíveis Melhorias
+
+- Parametrizar URL da API interna e timeout por variável de ambiente.
+- Criar testes de integração para a API mock.
+- Adicionar validação oficial de CPF e CNPJ.
+- Criar comando auxiliar para preparar ambiente, rodar testes e executar o pipeline em sequência.
+- Melhorar o formato de logs para JSON estruturado.
+
+## Uso de IA
+
+Usei IA como apoio durante o desenvolvimento para revisar decisões técnicas e discutir trade-offs. As decisões de estrutura, validação, fluxo de execução, criação do código, ajustes finais e testes foram executadas manualmente por mim durante a implementação, limitando o uso de IA para revisão.
+
+## Anotações de Desenvolvimento
+
+Durante o desenvolvimento segui uma evolução incremental do pipeline.
+
+Primeiro criei a estrutura inicial de arquivos para refletir as etapas do enunciado.
+
+Depois comecei pelo `main.py` pois ele é a porta de entrada do pipeline, antes de aplicar regra de negócio validei a interface exigida pelo teste:
+
+```bash
+python main.py --input arquivo.csv
+```
+
+Em seguida criei um CSV de teste com dados válidos, inválidos, duplicados e colunas extras. Essa etapa ajudou a validar a ingestão real do arquivo e também revelou uma questão de encoding, como arquivos criados ou editados no Windows podem vir em `cp1252` implementei um fallback entre `utf-8-sig` e `cp1252` para tornar a leitura mais robusta.
+
+Na etapa de normalização, criei funções específicas para limpar textos, normalizar email e manter apenas números em campos como documento, telefone e CEP. Depois integrei essa lógica ao `main.py` e passei a exibir uma prévia do dataset antes e depois da normalização.
+
+Com os dados normalizados implementei o `validator.py`. Nele concentrei as regras de validação do enunciado e também adicionei uma validação simples de email com regex. A função principal retorna se a linha é válida e quando não é, retorna o motivo da invalidação.
+
+Depois criei o `writer.py` para centralizar a escrita dos arquivos de saída, uma decisão importante foi gerar os arquivos com cabeçalho mesmo quando não houver linhas, isso mantém o output do pipeline previsível.
+
+Também tratei duplicidade por `external_id`, a regra adotada foi manter a última ocorrência válida do arquivo.
+
+Na sequência implementei o `viacep_client.py` responsável por consultar a API pública do ViaCEP e mapear os campos retornados para `street`, `neighborhood`, `city` e `state`.
+
+Depois implementei a API mock em `api_mock.py` usando FastAPI e SQLite. Escolhi SQLite por ser simples, nativo e suficiente para demonstrar persistência local. Com a API rodando validei o comportamento idempotente com seguinte teste: na primeira execução os registros foram criados e na segunda execução os mesmos registros foram atualizados.
+
+Em seguida implementei o `report.py` responsável por montar e escrever o `report.json` com os totais exigidos no enunciado do teste.
+
+Por fim implementei o `logger.py` usando a biblioteca nativa `logging`, o logger registra início e fim da execução, totais processados, falhas de API e arquivos gerados.
+
+Depois que o fluxo principal estava atendido adicionei testes unitários simples para normalização, validação e deduplicação. A intenção foi garantir uma checagem rápida das regras mais críticas do enunciado.
+
+## Trade-offs
+
+Optei por FastAPI em vez de Flask porque o FastAPI oferece uma estrutura moderna, documentação automática e boa integração com modelos de entrada usando Pydantic.
+
+Também optei por separar responsabilidades em módulos, entendo que isso aumenta um pouco a quantidade de arquivos mas melhora a leitura, facilita manutenção e reduz o risco de o `main.py` concentrar regra demais e acoplar o pipeline. A ideia é deixar sempre ele preparado para escalar por isso eu prefiro esse estilo de programação.

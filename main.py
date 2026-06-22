@@ -90,6 +90,9 @@ def main():
         if is_valid:
             valid_rows.append(normalized_row)
         else:
+            logger.warning(
+                f"Registro inválido: external_id={original_row.get('external_id', '')} motivo={reason}"
+            )
             invalid_rows.append({
                 "external_id": original_row.get("external_id", ""),
                 "name": original_row.get("name", ""),
@@ -101,6 +104,8 @@ def main():
             })
 
     deduplicated_valid_rows, duplicated_external_ids = deduplicate_valid_rows(valid_rows)
+    for external_id in duplicated_external_ids:
+        logger.warning(f"External ID duplicado encontrado: {external_id}")
 
     enriched_valid_rows = []
     viacep_failures = 0
