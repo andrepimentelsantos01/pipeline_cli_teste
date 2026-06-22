@@ -1,5 +1,6 @@
 import argparse
 import csv
+import time
 from pathlib import Path
 
 from src.normalizer import normalize_row
@@ -7,6 +8,7 @@ from src.validator import validate_row, deduplicate_valid_rows
 from src.writer import write_csv
 from src.viacep_client import get_address_by_zip_code
 from src.internal_api_client import send_client
+from src.report import build_report, write_report
 
 VALID_FIELDS = [
     "external_id",
@@ -56,6 +58,8 @@ def read_csv(input_path):
     raise ValueError("Não foi possível ler o CSV, encoding não suportado. Revisar a função de fallback do encoding.")
 
 def main():
+    started_at = time.perf_counter()
+
     args = parse_args()
     input_path = Path(args.input)
 
@@ -69,6 +73,7 @@ def main():
 
     valid_rows = []
     invalid_rows = []
+
     for row in normalized_rows:
         is_valid, reason = validate_row(row)
 
@@ -117,8 +122,21 @@ def main():
         else:
             total_internal_api_failures += 1
 
+    execution_time = round(time.perf_counter() - started_at, 2)
+
+    report = build_report(
+        total_processed=len(rows),
+        total_valid=len(deduplicated_valid_rows),
+        total_invalid=len(invalid_rows),
+        total_created=total_created,
+        total_updated=total_updated,
+        total_api_failures=viacep_failures + total_internal_api_failures,
+        execution_time=execution_time,
+    )
+
     write_csv(Path("output/valid.csv"), enriched_valid_rows, VALID_FIELDS)
     write_csv(Path("output/invalid.csv"), invalid_rows, INVALID_FIELDS)
+    write_report(Path("output/report.json"), report)
 
     raw_preview_rows = rows[:5]
     normalized_preview_rows = normalized_rows[:5]
@@ -135,8 +153,10 @@ def main():
     print (f"Total de registros criados na API interna: {total_created}")
     print (f"Total de registros atualizados na API interna: {total_updated}")
     print (f"Total de falhas na API interna: {total_internal_api_failures}")
+    print (f"Tempo de execução: {execution_time}s")
     print ("Arquivo gerado: output/valid.csv")
     print ("Arquivo gerado: output/invalid.csv")
+    print ("Arquivo gerado: output/report.json")
 
     print ("\nPrévia do dataset original:")
 
