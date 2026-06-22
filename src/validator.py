@@ -30,3 +30,17 @@ def validate_row(row):
         return False, "O campo 'ZIP_CODE' deve conter apenas 8 dígitos numéricos."
 
     return True, ""
+
+def deduplicate_valid_rows(rows):
+    deduplicated_rows_by_external_id = {}
+    duplicated_external_ids = []
+
+    for row in rows:
+        external_id = row["external_id"]
+
+        if external_id in deduplicated_rows_by_external_id:
+            duplicated_external_ids.append(external_id)
+
+        deduplicated_rows_by_external_id[external_id] = row
+
+    return list(deduplicated_rows_by_external_id.values()), duplicated_external_ids

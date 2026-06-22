@@ -3,7 +3,7 @@ import csv
 from pathlib import Path
 
 from src.normalizer import normalize_row
-from src.validator import validate_row
+from src.validator import validate_row, deduplicate_valid_rows
 from src.writer import write_csv
 
 VALID_FIELDS = [
@@ -74,17 +74,21 @@ def main():
                 "invalid_reason": reason,
             })
 
+    deduplicated_valid_rows, duplicated_external_ids = deduplicate_valid_rows(valid_rows)
+
     write_csv(Path("output/valid.csv"), valid_rows, VALID_FIELDS)
     write_csv(Path("output/invalid.csv"), invalid_rows, INVALID_FIELDS)
 
     raw_preview_rows = rows[:5]
     normalized_preview_rows = normalized_rows[:5]
 
-    print (f"Encoding utilizado: {encoding}")
-    print (f"Total de registos lidos: {len(rows)}")
-    print (f"Total de registros normalizados: {len(normalized_rows)}")
-    print (f"Total de registros válidos: {len(valid_rows)}")
-    print (f"Total de registros inválidos: {len(invalid_rows)}")
+    print(f"Encoding utilizado: {encoding}")
+    print(f"Total de registos lidos: {len(rows)}")
+    print(f"Total de registros normalizados: {len(normalized_rows)}")
+    print(f"Total de registros válidos antes da deduplicação: {len(valid_rows)}")
+    print(f"Total de registros válidos após deduplicação: {len(deduplicated_valid_rows)}")
+    print(f"Total de external_ids duplicados: {len(duplicated_external_ids)}")
+    print(f"Total de registros inválidos: {len(invalid_rows)}")
     print("Arquivo gerado: output/valid.csv")
     print("Arquivo gerado: output/invalid.csv")
 
@@ -102,6 +106,11 @@ def main():
 
     for row in invalid_rows:
         print(row)
+
+    print("\nExternal IDs duplicados:")
+
+    for external_id in duplicated_external_ids:
+        print(external_id)
 
 if __name__ == "__main__":
     main()
