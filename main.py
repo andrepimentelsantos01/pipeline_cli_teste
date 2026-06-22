@@ -6,6 +6,7 @@ from src.normalizer import normalize_row
 from src.validator import validate_row, deduplicate_valid_rows
 from src.writer import write_csv
 from src.viacep_client import get_address_by_zip_code
+from src.internal_api_client import send_client
 
 VALID_FIELDS = [
     "external_id",
@@ -102,12 +103,26 @@ def main():
                 "state": "",
             })
 
+    total_created = 0
+    total_updated = 0
+    total_internal_api_failures = 0
+
+    for client in enriched_valid_rows:
+        result = send_client(client)
+
+        if result == "created":
+            total_created += 1
+        elif result == "updated":
+            total_updated += 1
+        else:
+            total_internal_api_failures += 1
+
     write_csv(Path("output/valid.csv"), enriched_valid_rows, VALID_FIELDS)
     write_csv(Path("output/invalid.csv"), invalid_rows, INVALID_FIELDS)
 
     raw_preview_rows = rows[:5]
     normalized_preview_rows = normalized_rows[:5]
-    enriched_valid_rows = enriched_valid_rows[:5]
+    enriched_preview_rows = enriched_valid_rows[:5]
 
     print (f"Encoding utilizado: {encoding}")
     print (f"Total de registos lidos: {len(rows)}")
@@ -117,6 +132,9 @@ def main():
     print (f"Total de external_ids duplicados: {len(duplicated_external_ids)}")
     print (f"Total de registros inválidos: {len(invalid_rows)}")
     print (f"Total de falhas ViaCEP: {viacep_failures}")
+    print (f"Total de registros criados na API interna: {total_created}")
+    print (f"Total de registros atualizados na API interna: {total_updated}")
+    print (f"Total de falhas na API interna: {total_internal_api_failures}")
     print ("Arquivo gerado: output/valid.csv")
     print ("Arquivo gerado: output/invalid.csv")
 
@@ -132,7 +150,7 @@ def main():
 
     print ("\nPrévia do dataset válido enriquecido com ViaCEP")
 
-    for row in enriched_valid_rows:
+    for row in enriched_preview_rows:
         print(row)
 
 if __name__ == "__main__":
