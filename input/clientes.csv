@@ -1,0 +1,8 @@
+external_id,name,email,document,phone,zip_code,extra_column
+001, João Silva ,JOAO@EMAIL.COM,123.456.789-00,(11) 99999-9999,01001-000,ignorar
+002,Maria Souza,maria@email.com,12.345.678/0001-99,1133334444,30140-071,ignorar
+003,Ana,ana.email.com,12345678900,11988887777,01001000,ignorar
+,Aline Lima,aline@email.com,12345678900,11977776666,01001000,ignorar
+005,B,b@email.com,12345678900,11966665555,01001000,ignorar
+006,Carlos Lima,carlos@email.com,abc123,(11) 95555-4444,99999-999,ignorar
+001,João Silva Atualizado,joao.novo@email.com,12345678900,11999999999,01001000,ignorar
