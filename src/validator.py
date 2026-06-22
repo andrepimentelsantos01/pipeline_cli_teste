@@ -7,7 +7,7 @@ def is_valid_email(email):
 
 def validate_row(row):
     if not row.get("external_id"):
-        return False, "external_id obrigatório"
+        return False, "O campo 'EXTERNAL_ID' é obrigatório"
 
     name = row.get("name", "")
     if len(name) < 2:

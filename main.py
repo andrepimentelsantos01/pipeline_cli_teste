@@ -1,8 +1,24 @@
 import argparse
 import csv
 from pathlib import Path
+
 from src.normalizer import normalize_row
 from src.validator import validate_row
+from src.writer import write_csv
+
+VALID_FIELDS = [
+    "external_id",
+    "name",
+    "email",
+    "document",
+    "phone",
+    "zip_code",
+]
+
+INVALID_FIELDS = [
+    *VALID_FIELDS,
+    "invalid_reason",
+]
 
 def parse_args():
     parser = argparse.ArgumentParser(
@@ -58,6 +74,9 @@ def main():
                 "invalid_reason": reason,
             })
 
+    write_csv(Path("output/valid.csv"), valid_rows, VALID_FIELDS)
+    write_csv(Path("output/invalid.csv"), invalid_rows, INVALID_FIELDS)
+
     raw_preview_rows = rows[:5]
     normalized_preview_rows = normalized_rows[:5]
 
@@ -66,6 +85,8 @@ def main():
     print (f"Total de registros normalizados: {len(normalized_rows)}")
     print (f"Total de registros válidos: {len(valid_rows)}")
     print (f"Total de registros inválidos: {len(invalid_rows)}")
+    print("Arquivo gerado: output/valid.csv")
+    print("Arquivo gerado: output/invalid.csv")
 
     print ("\nPrévia do dataset original:")
 
