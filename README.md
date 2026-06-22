@@ -342,4 +342,6 @@ python main.py --input arquivo.csv
 
 - Optei por FastAPI em vez de Flask porque o FastAPI oferece uma estrutura moderna, documentação automática e boa integração com modelos de entrada usando Pydantic.
 
+- Embora eu pudesse desenvolver a mesma solução utilizando o Pandas, optei por seguir com o csv.DictReader nativo devido a limitações de hardware e restrições de recursos da máquina onde eu desenvolvi a solução. O uso do Python puro eliminou o overhead de memória, garantindo que o pipeline rodasse de forma extremamente leve e fluida na máquina que eu tinha disponível para execução do teste.
+
 - Também optei por separar responsabilidades em módulos, entendo que isso aumenta um pouco a quantidade de arquivos mas melhora a leitura, facilita manutenção e reduz o risco de o `main.py` concentrar regra demais e acoplar o pipeline. A ideia é deixar sempre ele preparado para escalar por isso eu prefiro esse estilo de programação.
